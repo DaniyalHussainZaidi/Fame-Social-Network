@@ -1,101 +1,63 @@
 ## Fame Social Network
 
-A Django-based social network inspired by Twitter, extended with **Fame** — a
-skill-based reputation system that replaces likes, follower counts, and
-opinion-driven metrics with a transparent, evolving record of what a user
-actually knows and does well.
+A Django based social network inspired by Twitter, with one big twist: a feature called Fame. Instead of likes, followers, and opinions, Fame tracks what a user actually knows and how accurate they've been about it.
 
-Instead of profiling users by preferences, political leanings, or browsing
-habits, Fame profiles track **demonstrated expertise** across a taxonomy of
-topics (e.g. `Django → Databases → Computer Science`), including both
-positive fame (skill, competence) and negative fame (repeated
-misinformation, "bullshitting") in a given area.
+Fame profiles don't care about your political views, your browsing habits, or what you bought last week. They only track your skills, both the good side (real expertise) and the bad side (spreading misinformation on a topic). Skills are organized in a simple hierarchy, for example Django under Databases under Computer Science.
 
 ## Project Overview
 
-This project combines two Django apps into a single platform:
+The project is built from two Django apps that work together.
 
-- **`socialnetwork`** — the core Twitter-like functionality: user
-  authentication, following, posts, timelines, search, and an internal API
-  layer (`api.py`) that keeps business logic independent of the HTML and
-  REST views.
-- **`fame`** — the reputation layer. Every user has a Fame profile made up
-  of hierarchical expertise areas, each with a fame level ranging from
-  strongly positive (e.g. `Super Pro`) to strongly negative (e.g.
-  `Bullshitter`).
+`socialnetwork` handles the usual social media stuff: login, following people, posting, timelines, search, and an internal API layer that keeps the logic separate from the HTML and REST views.
 
-The two apps are wired together in `famesocialnetwork`, where a post's
-content is automatically analyzed, classified, and used to adjust the
-author's Fame profile over time.
+`fame` manages the reputation side. Every user has a Fame profile made of expertise areas, and each one has a fame level. This can range from something strongly positive like Super Pro down to something clearly negative like Bullshitter.
+
+These two apps are connected inside `famesocialnetwork`, where every post gets analyzed automatically and used to update the author's Fame profile over time.
 
 ## Core Concepts
 
-- **Fame Profiles** — A per-user taxonomy of skills, built from actual
-  behavior (what you post, how accurate it is) rather than
-  self-declaration.
-- **Negative Fame** — Posting inaccurate or misleading content lowers a
-  user's fame in the relevant expertise area instead of simply being
-  deleted or hidden — it becomes part of the user's public track record.
-- **Communities** — Once a user reaches a high fame level (`Super Pro` or
-  above) in a topic, they can join a dedicated community for that topic.
-  Falling below that threshold automatically removes them.
-- **Similarity Scoring** — Users can be compared based on how closely
-  their fame levels align across shared expertise areas, enabling
-  discovery of like-minded / similarly skilled users.
-- **Bullshitter Rankings** — A ranked, per-topic view of users with the
-  most negative fame, ordered by severity and recency.
+**Fame Profiles**
+A record of your skills based on what you actually post, not what you claim to know.
+
+**Negative Fame**
+If you post something false or misleading, your fame in that topic goes down. The post isn't just deleted, it becomes part of your track record.
+
+**Communities**
+Once your fame in a topic reaches Super Pro or higher, you can join that topic's community. If your fame drops below that, you get removed automatically.
+
+**Similarity Scoring**
+Users get compared based on how similar their fame levels are across shared topics, which helps surface people with similar skills or interests.
+
+**Bullshitter Rankings**
+A ranked list, per topic, showing which users have the worst fame there, ordered by how bad it is and how recent.
 
 ## Key Features
 
-- User authentication, following, and timelines
-- Text-based posts with automatic expertise-area detection
-- Fame-aware publishing: posts are blocked or penalized based on the
-  author's existing reputation in the relevant topic
-- Standard and community-based timeline modes
-- User similarity search based on fame profile overlap
-- REST API (Django REST Framework) alongside server-rendered HTML views
-- Fake data generation via custom Django management commands, for local
-  development and demoing
+User login, following, and timelines
+Text posts with automatic topic detection
+Fame based publishing rules, so your reputation affects what you can post
+Two timeline modes: standard and community
+User similarity search based on fame overlap
+REST API using Django REST Framework, plus regular HTML views
+Fake data generation through custom management commands for testing locally
 
-## ML Truth Detection & Adversarial Evasion System
+## ML Truth Detection and Adversarial Evasion System
 
-Posts aren't taken at face value. Before publishing, each post is run
-through a lightweight **truth-classification pipeline**
-(`socialnetwork/ml_engine.py`) built with `scikit-learn`:
+Before a post gets published, it runs through a small truth checking pipeline in `socialnetwork/ml_engine.py`, built using scikit learn.
 
-- A **TF-IDF + Logistic Regression** pipeline estimates the probability
-  that a post's text is low-quality / spam-like ("bullshit").
-- Based on configurable probability thresholds, each post is labeled
-  `TRUE`, `BULLSHIT`, or `UNKNOWN` (when the model isn't confident enough
-  either way).
-- This verdict feeds directly into the Fame system: posts flagged as
-  bullshit affect the author's fame in the detected expertise area,
-  exactly like a real automated moderation/reputation system would.
+It uses TF IDF combined with Logistic Regression to estimate how likely a post is to be spam or low quality. Based on set thresholds, each post gets labeled TRUE, BULLSHIT, or UNKNOWN if the model isn't confident enough either way. That label then feeds straight into the Fame system, so a post flagged as bullshit actually hurts the author's fame in that topic.
 
 ### Adversarial Evasion Module
 
-To stress-test the classifier's robustness, the project includes an
-**adversarial evasion simulator** — a set of techniques designed to probe
-how easily the truth-detection model can be fooled, mirroring
-real-world evasion tactics seen on social platforms:
+To see how easy it is to fool the classifier, the project also includes an adversarial evasion module. This simulates the kind of tricks people actually use to dodge automated moderation:
 
-- **Benign word injection** — Appending innocuous, neutral phrases (e.g.
-  "thanks", "regards", "meeting") to shift the model's TF-IDF signal away
-  from spam-like patterns.
-- **Leetspeak substitution** — Randomly replacing letters with
-  visually-similar symbols (`a → @`, `e → 3`, `i → !`, `o → 0`, `s → $`,
-  `t → 7`, `c → (`) to break tokenizer pattern matching.
-- **Zero-width character injection** — Inserting invisible Unicode
-  zero-width space characters (`\u200b`) inside words to split tokens
-  without any visible change to the text.
+Benign word injection, where harmless words like thanks or meeting get added to the text to shift it away from looking spammy.
 
-This module exists purely as a **research and evaluation tool**: it lets
-the team measure how much the classifier's accuracy degrades under
-adversarial input, and informs future hardening of the truth-detection
-pipeline (e.g. text normalization before tokenization, adversarial
-training, or ensemble verification). It is not used to evade moderation
-in production — it's a testing harness for the model itself.
+Leetspeak substitution, swapping letters for similar looking symbols such as a to @, e to 3, i to !, o to 0, s to $, t to 7, and c to (.
 
+Zero width character injection, hiding invisible unicode characters inside words to split them apart without changing how the text looks.
+
+This module is only meant for testing. It helps measure how much the classifier's accuracy drops under these kinds of attacks, and points toward future fixes like normalizing text before tokenizing it, adversarial training, or adding a second verification step. It's not meant to be used to actually dodge moderation in a live system, it's a way to test and improve the model.
 
 ## Preliminary
 
